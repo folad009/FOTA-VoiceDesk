@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  COMMUNICATION_ADMIN
+  VIEWER
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum CallStatus {
+  PENDING
+  QUEUED
+  CALLING
+  RINGING
+  ANSWERED
+  COMPLETED
+  NO_ANSWER
+  BUSY
+  FAILED
+  CANCELLED
+  RETRYING
+}
+
+enum CampaignType {
+  SUNDAY_SERVICE_REMINDER
+  CHURCH_PROGRAMME_REMINDER
+  CONFERENCE_REMINDER
+  SERVICE_ANNOUNCEMENT
+  BIRTHDAY_GREETING
+  PASTORAL_MESSAGE
+  WORKERS_MEETING_REMINDER
+  CELL_FELLOWSHIP_REMINDER
+  EMERGENCY_ANNOUNCEMENT
+  GENERAL_BROADCAST
+}
+
+enum VoiceMessageKind {
+  TTS
+  RECORDING
+}
+
+enum VoicemailBehavior {
+  NONE
+  LEAVE_MESSAGE
+  HANGUP_ON_MACHINE
+}
+
+enum WebhookProvider {
+  TWILIO
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED_DUPLICATE
+  FAILED
+}
+
+enum NotificationKind {
+  CAMPAIGN
+  SYSTEM
+}
+
+model Role {
+  id    String   @id @default(cuid())
+  name  RoleName @unique
+  users User[]
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String
+  roleId        String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  role          Role           @relation(fields: [roleId], references: [id])
+  accounts      Account[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  contactGroups ContactGroup[]
+  voiceMessages VoiceMessage[]
+  voiceProfiles VoiceProfile[]
+  campaigns     Campaign[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Contact {
+  id          String               @id @default(cuid())
+  name        String
+  phoneE164   String               @unique
+  email       String?
+  notes       String?
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  memberships ContactGroupMember[]
+  recipients  CampaignRecipient[]
+}
+
+model ContactGroup {
+  id          String               @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdBy   User                 @relation(fields: [createdById], references: [id])
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  members     ContactGroupMember[]
+  campaigns   Campaign[]
+}
+
+model ContactGroupMember {
+  id        String       @id @default(cuid())
+  groupId   String
+  contactId String
+  group     ContactGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  contact   Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, contactId])
+}
+
+model VoiceProfile {
+  id                String         @id @default(cuid())
+  name              String
+  elevenLabsVoiceId String
+  sampleMediaUrl    String?
+  archivedAt        DateTime?
+  createdById       String
+  createdBy         User           @relation(fields: [createdById], references: [id])
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  messages          VoiceMessage[]
+
+  @@index([createdById])
+  @@index([archivedAt])
+}
+
+model VoiceMessage {
+  id                   String           @id @default(cuid())
+  kind                 VoiceMessageKind
+  title                String
+  ttsText              String?
+  voice                String?
+  language             String?
+  introText            String?
+  includeRecipientName Boolean          @default(false)
+  mediaUrl             String?
+  durationSeconds      Int?
+  fileSizeBytes        Int?
+  archivedAt           DateTime?
+  voiceProfileId       String?
+  voiceProfile         VoiceProfile?    @relation(fields: [voiceProfileId], references: [id])
+  createdById          String
+  createdBy            User             @relation(fields: [createdById], references: [id])
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  campaigns            Campaign[]
+
+  @@index([voiceProfileId])
+}
+
+model Campaign {
+  id                       String              @id @default(cuid())
+  name                     String
+  description              String?
+  type                     CampaignType        @default(GENERAL_BROADCAST)
+  status                   CampaignStatus      @default(DRAFT)
+  voiceMessageId           String?
+  voiceMessage             VoiceMessage?       @relation(fields: [voiceMessageId], references: [id])
+  groupId                  String?
+  group                    ContactGroup?       @relation(fields: [groupId], references: [id])
+  maxAttempts              Int                 @default(3)
+  retryDelayMinutes        Int                 @default(60)
+  callingHoursStartMinutes Int                 @default(480)
+  callingHoursEndMinutes   Int                 @default(1200)
+  timezone                 String              @default("Africa/Lagos")
+  minDelayBetweenCallsMs   Int                 @default(2000)
+  autoCompleteOnFinish     Boolean             @default(true)
+  voicemailBehavior        VoicemailBehavior   @default(NONE)
+  createdById              String
+  createdBy                User                @relation(fields: [createdById], references: [id])
+  startedAt                DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  schedules                CampaignSchedule[]
+  recipients               CampaignRecipient[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CampaignSchedule {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scheduledFor DateTime
+  timezone     String
+}
+
+model CampaignRecipient {
+  id            String        @id @default(cuid())
+  campaignId    String
+  contactId     String
+  status        CallStatus    @default(PENDING)
+  attemptCount  Int           @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact       Contact       @relation(fields: [contactId], references: [id])
+  attempts      CallAttempt[]
+
+  @@unique([campaignId, contactId])
+  @@index([status])
+  @@index([campaignId])
+  @@index([nextAttemptAt])
+  @@index([campaignId, status, nextAttemptAt])
+}
+
+model CallAttempt {
+  id                  String            @id @default(cuid())
+  campaignRecipientId String
+  attemptNumber       Int
+  status              CallStatus        @default(PENDING)
+  twilioCallSid       String?           @unique
+  startedAt           DateTime?
+  completedAt         DateTime?
+  durationSeconds     Int?
+  failureReason       String?
+  generatedMediaUrl   String?
+  campaignRecipient   CampaignRecipient @relation(fields: [campaignRecipientId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignRecipientId, attemptNumber])
+  @@index([startedAt])
+  @@index([status])
+}
+
+model WebhookEvent {
+  id               String                  @id @default(cuid())
+  provider         WebhookProvider
+  externalEventId  String
+  payload          Json
+  processingStatus WebhookProcessingStatus @default(RECEIVED)
+  relatedCallSid   String?
+  createdAt        DateTime                @default(now())
+  processedAt      DateTime?
+
+  @@unique([provider, externalEventId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      NotificationKind
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+}
