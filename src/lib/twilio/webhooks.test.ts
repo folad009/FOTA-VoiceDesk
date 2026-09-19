@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  absoluteMediaUrl,
   applyTwilioCallStatus,
   mapTwilioCallStatus,
   reconstructTwilioRequestUrl,
@@ -186,6 +187,20 @@ describe("reconstructTwilioRequestUrl", () => {
         webhookBaseUrl: "https://voicedesk.example",
       }),
     ).toBe("https://voicedesk.example/api/twilio/status?attempt=1")
+  })
+})
+
+describe("absoluteMediaUrl", () => {
+  it("rewrites legacy upload paths through the voice media API", () => {
+    const previous = process.env.TWILIO_WEBHOOK_BASE_URL
+    process.env.TWILIO_WEBHOOK_BASE_URL = "https://voicedesk.example"
+    expect(absoluteMediaUrl("/uploads/voice/sample.mp3")).toBe(
+      "https://voicedesk.example/api/voice/media/sample.mp3",
+    )
+    expect(absoluteMediaUrl("/api/voice/media/sample.mp3")).toBe(
+      "https://voicedesk.example/api/voice/media/sample.mp3",
+    )
+    process.env.TWILIO_WEBHOOK_BASE_URL = previous
   })
 })
 

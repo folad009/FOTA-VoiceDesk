@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto"
 import { Prisma } from "@prisma/client"
 
 import type { CallStatus } from "@/domain/status"
+import { playableMediaPath } from "@/lib/s3/paths"
 import { prisma } from "@/server/db/prisma"
 import { campaignStatusWhenQueueEmpty } from "@/server/calling/eligibility"
 import { spokenCampaignBody, spokenScriptForContact } from "@/server/voice/script"
@@ -228,10 +229,11 @@ export function getTwilioWebhookBaseUrl(): string {
 }
 
 export function absoluteMediaUrl(mediaUrl: string): string {
-  if (/^https?:\/\//i.test(mediaUrl)) {
-    return mediaUrl
+  const normalized = playableMediaPath(mediaUrl)
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized
   }
-  const path = mediaUrl.startsWith("/") ? mediaUrl : `/${mediaUrl}`
+  const path = normalized.startsWith("/") ? normalized : `/${normalized}`
   return `${getTwilioWebhookBaseUrl()}${path}`
 }
 

@@ -1,6 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import {
+  contentTypeForFileName,
+  putVoiceObject,
+  useS3VoiceStorage,
+  voiceMediaUrl,
+} from "@/lib/s3/client"
+
 const ALLOWED_AUDIO = new Set([
   "audio/mpeg",
   "audio/mp3",
@@ -37,13 +44,19 @@ export async function saveVoiceRecording(
 
   const extension = extensionFor(file.type, file.name)
   const fileName = `${crypto.randomUUID()}.${extension}`
-  const directory = path.join(process.cwd(), "public", "uploads", "voice")
-  await mkdir(directory, { recursive: true })
   const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(directory, fileName), buffer)
+  const contentType = file.type || contentTypeForFileName(fileName)
+
+  if (useS3VoiceStorage()) {
+    await putVoiceObject({ fileName, body: buffer, contentType })
+  } else {
+    const directory = path.join(process.cwd(), "public", "uploads", "voice")
+    await mkdir(directory, { recursive: true })
+    await writeFile(path.join(directory, fileName), buffer)
+  }
 
   return {
-    mediaUrl: `/uploads/voice/${fileName}`,
+    mediaUrl: voiceMediaUrl(fileName),
     fileSizeBytes: file.size,
   }
 }

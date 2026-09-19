@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 const SESSION_COOKIE = "voicedesk_session"
-const PUBLIC_PREFIXES = ["/login", "/api/twilio", "/api/calling/tick"]
+const PUBLIC_PREFIXES = ["/login", "/api/twilio", "/api/calling/tick", "/api/voice/media"]
 
 export function middleware(request: NextRequest) {
   if (process.env.NODE_ENV !== "production") {

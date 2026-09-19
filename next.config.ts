@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/client", "bcryptjs", "xlsx"],
   experimental: {
     serverActions: {
-      bodySizeLimit: "8mb",
+      // Matches clone sample max (25 MB) in voice profiles.
+      bodySizeLimit: "25mb",
     },
   },
 };

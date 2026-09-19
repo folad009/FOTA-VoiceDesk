@@ -1,6 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises"
-import path from "node:path"
-
 import { fromZonedTime } from "date-fns-tz"
 
 import { requireOperator } from "@/server/auth/actor"
@@ -17,6 +14,7 @@ import {
 import { clonedSpeechPlan, parseCloneVoiceValue } from "@/server/voice/clone"
 import { generateClonedSpeech } from "@/server/voice/generate"
 import { requireActiveVoiceProfile } from "@/server/voice/profiles"
+import { saveVoiceRecording } from "@/server/voice/store"
 
 export async function createCampaignFromDraft({
   draft: rawDraft,
@@ -75,13 +73,8 @@ export async function createCampaignFromDraft({
   let mediaUrl: string | null = null
   let voiceProfileId: string | null = null
   if (!draft.libraryMessageId && draft.messageKind === "RECORDING" && audio && audio.size > 0) {
-    const extension = extensionFor(audio.type, audio.name)
-    const fileName = `${crypto.randomUUID()}.${extension}`
-    const directory = path.join(process.cwd(), "public", "uploads", "voice")
-    await mkdir(directory, { recursive: true })
-    const buffer = Buffer.from(await audio.arrayBuffer())
-    await writeFile(path.join(directory, fileName), buffer)
-    mediaUrl = `/uploads/voice/${fileName}`
+    const stored = await saveVoiceRecording(audio)
+    mediaUrl = stored.mediaUrl
   }
   if (!draft.libraryMessageId && draft.messageKind === "TTS") {
     const profileId = parseCloneVoiceValue(draft.voice)
@@ -229,21 +222,4 @@ export async function createCampaignFromDraft({
   }
 
   return { campaignId }
-}
-
-function extensionFor(mimeType: string, fileName: string): string {
-  if (mimeType.includes("wav")) {
-    return "wav"
-  }
-  if (mimeType.includes("mpeg") || mimeType.includes("mp3")) {
-    return "mp3"
-  }
-  if (mimeType.includes("mp4") || mimeType.includes("m4a")) {
-    return "m4a"
-  }
-  const fromName = fileName.split(".").pop()?.toLowerCase()
-  if (fromName === "wav" || fromName === "mp3" || fromName === "m4a") {
-    return fromName
-  }
-  return "mp3"
 }
