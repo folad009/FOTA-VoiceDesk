@@ -177,6 +177,29 @@ describe("validateTwilioSignature", () => {
       }),
     ).toBe(false)
   })
+
+  it("keeps query-string attempt in the URL and out of POST params", () => {
+    const url =
+      "https://fota-voice-desk.vercel.app/api/twilio/status?attempt=cmu8js3ql000cla04k2gqawip"
+    const bodyParams = { CallSid: "CA123", CallStatus: "completed" }
+    const signature = sign("auth-token", url, bodyParams)
+    expect(
+      validateTwilioSignature({
+        authToken: "auth-token",
+        url,
+        params: bodyParams,
+        signature,
+      }),
+    ).toBe(true)
+    expect(
+      validateTwilioSignature({
+        authToken: "auth-token",
+        url,
+        params: { ...bodyParams, attempt: "cmu8js3ql000cla04k2gqawip" },
+        signature,
+      }),
+    ).toBe(false)
+  })
 })
 
 describe("reconstructTwilioRequestUrl", () => {

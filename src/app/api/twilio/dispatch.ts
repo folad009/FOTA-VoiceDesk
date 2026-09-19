@@ -31,11 +31,8 @@ export async function dispatchTwilioWebhook(
     forwardedHost: request.headers.get("x-forwarded-host"),
     host: request.headers.get("host"),
   })
-  const requestUrl = new URL(request.url)
-  const attemptFromQuery = requestUrl.searchParams.get("attempt")
-  if (attemptFromQuery && !params.attempt) {
-    params.attempt = attemptFromQuery
-  }
+  // Twilio signs: full URL (including query string) + POST body fields only.
+  // Do not copy query params into `params` before validation.
   const signature = request.headers.get("x-twilio-signature") ?? ""
   const valid = validateTwilioSignature({
     authToken: getTwilioAuthToken(),
@@ -46,6 +43,11 @@ export async function dispatchTwilioWebhook(
   if (!valid) {
     console.warn("[twilio.http] invalid signature", { kind, url })
     return jsonError("Invalid Twilio signature", 403)
+  }
+
+  const attemptFromQuery = new URL(request.url).searchParams.get("attempt")
+  if (attemptFromQuery && !params.attempt) {
+    params.attempt = attemptFromQuery
   }
 
   try {
